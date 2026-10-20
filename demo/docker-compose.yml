@@ -1,0 +1,24 @@
+# Two copies of the same app: vulnerable on :8090, guarded on :8091. Both use your local Ollama.
+x-shop: &shop
+  build: .
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  env_file:
+    - path: .env
+      required: false
+
+services:
+  shop-vulnerable:
+    <<: *shop
+    ports: ["8090:8080"]
+    environment:
+      GUARDS: "off"
+      MODEL: ${MODEL:-llama3.1:8b}
+    volumes: ["./logs/vulnerable:/app/logs"]
+  shop-guarded:
+    <<: *shop
+    ports: ["8091:8080"]
+    environment:
+      GUARDS: "on"
+      MODEL: ${MODEL:-llama3.1:8b}
+    volumes: ["./logs/guarded:/app/logs"]

@@ -1,0 +1,12 @@
+.venv*/
+__pycache__/
+*.pyc
+*.egg-info/
+.env
+demo/.env
+demo/logs/
+eval/datasets/raw/
+eval/datasets/*.jsonl
+eval/results/raw/
+eval/results/logs/
+.DS_Store

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Larkspur Outfitters · Support</title>
+  <style nonce="{{ nonce }}">
+    :root { --bg: #f3f5f1; --card: #ffffff; --ink: #1f2a22; --muted: #5d6b60; --brand: #2f5d3a; --line: #dfe5dc;
+            --bot: #eef2ec; --warn-bg: #fff4d6; --warn-ink: #7a5300; --deny-bg: #fde8e6; --deny-ink: #8a2a1f; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
+    header { background: var(--brand); color: #fff; padding: 14px 20px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+    header h1 { font-size: 18px; margin: 0; }
+    .mode { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: rgba(255,255,255,.18); }
+    .mode.off { background: #b3261e; }
+    main { max-width: 720px; margin: 20px auto; padding: 0 16px; }
+    .chat { background: var(--card); border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column; height: calc(100vh - 140px); min-height: 420px; }
+    #messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+    .row { display: flex; }
+    .row.user { justify-content: flex-end; }
+    .bubble { max-width: 80%; padding: 9px 13px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .user .bubble { background: var(--brand); color: #fff; }
+    .bot .bubble { background: var(--bot); }
+    .bubble.error { background: var(--deny-bg); color: var(--deny-ink); }
+    .notice { font: 13px/1.4 ui-monospace, Menlo, monospace; padding: 6px 10px; border-radius: 8px; background: var(--warn-bg); color: var(--warn-ink); }
+    .notice.denied { background: var(--deny-bg); color: var(--deny-ink); }
+    .notice button { margin-left: 8px; font: inherit; padding: 1px 10px; border-radius: 6px; border: 1px solid currentColor; background: #fff; color: inherit; cursor: pointer; }
+    .notice button:disabled { opacity: .5; cursor: default; }
+    .hidden { display: none; }
+    form { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); }
+    #input { flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+    #send { padding: 0 16px; border: 0; border-radius: 8px; background: var(--brand); color: #fff; font: inherit; cursor: pointer; }
+    #send:disabled { opacity: .5; }
+    footer { text-align: center; color: var(--muted); font-size: 12px; padding: 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Larkspur Outfitters · Support</h1>
+    {% if guards %}<span class="mode">guards on</span>{% else %}<span class="mode off">guards OFF (vulnerable demo)</span>{% endif %}
+  </header>
+  <main>
+    <section class="chat">
+      <div id="messages">
+        <div class="row bot"><div class="bubble">Hi! I'm the Larkspur support assistant. How can I help?</div></div>
+        <div class="row bot hidden" id="typing"><div class="bubble">…</div></div>
+      </div>
+      <form id="composer">
+        <input id="input" autocomplete="off" placeholder="Ask about an order, a return or our gear">
+        <button id="send" type="submit">Send</button>
+      </form>
+    </section>
+  </main>
+  <footer>Demo shop with synthetic data. Signed in as a demo customer.</footer>
+
+  <script nonce="{{ nonce }}">
+    const GUARDS = {{ 'true' if guards else 'false' }};
+    let history = [];  // the conversation is kept in the browser and sent with every message
+    const messagesEl = document.getElementById("messages");
+    const typing = document.getElementById("typing");
+
+    function addRow(who, el) {
+      const row = document.createElement("div");
+      row.className = "row " + who;
+      row.appendChild(el);
+      messagesEl.insertBefore(row, typing);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      return el;
+    }
+
+    function addBubble(text, who, isError) {
+      const bubble = document.createElement("div");
+      bubble.className = "bubble" + (isError ? " error" : "");
+      if (who === "bot" && !isError && !GUARDS) {
+        bubble.innerHTML = text;    // VULNERABLE: model output parsed as HTML
+      } else {
+        bubble.textContent = text;  // GUARDED: model output is data, shown as text
+      }
+      return addRow(who === "user" ? "user" : "bot", bubble);
+    }
+
+    function addNotice(text, denied) {
+      const notice = document.createElement("div");
+      notice.className = "notice" + (denied ? " denied" : "");
+      notice.textContent = text;
+      return addRow("bot", notice);
+    }
+
+    function addPending(act) {
+      const notice = addNotice("Confirm " + act.action + " " + act.params.join(" / ") + "?", false);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = "Confirm";
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        const res = await fetch("/api/actions/confirm", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ grant: act.grant }),
+        });
+        const out = await res.json();
+        notice.textContent = out.status === "executed"
+          ? "Done: " + out.action + " " + out.params.join(" / ") + " (confirmed by you)"
+          : "Not executed: " + (out.reason || (out.reasons || []).join(", "));
+      });
+      notice.appendChild(button);
+    }
+
+    document.getElementById("composer").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const input = document.getElementById("input");
+      const send = document.getElementById("send");
+      const text = input.value.trim();
+      if (!text) return;
+      addBubble(text, "user", false);
+      input.value = "";
+      send.disabled = true;
+      typing.classList.remove("hidden");
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: text, history }),
+        });
+        const data = await res.json();
+        typing.classList.add("hidden");
+        if (data.error) {
+          addBubble(data.error, "bot", true);
+        } else {
+          addBubble(data.response, "bot", false);
+          (data.actions_executed || []).forEach((a) => addNotice("Action executed: " + a.action + " " + a.params.join(" / "), false));
+          (data.actions_pending || []).forEach(addPending);
+          (data.actions_denied || []).forEach((a) => addNotice("Not allowed: " + a.action + " " + a.params.join(" / ") + " (" + a.reasons.join(", ") + ")", true));
+          history.push({ role: "user", content: text }, { role: "assistant", content: data.response });
+        }
+      } catch (err) {
+        typing.classList.add("hidden");
+        addBubble("Couldn't reach the assistant. Please try again.", "bot", true);
+      } finally {
+        send.disabled = false;
+        input.focus();
+      }
+    });
+  </script>
+</body>
+</html>
