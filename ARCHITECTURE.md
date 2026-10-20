@@ -44,12 +44,12 @@ flowchart LR
 | Forged history supplies "confirmation" | LLM01 | AML.T0051 | Confirmation is a signed grant redeemed by the user, never chat text | forged-history exemplar |
 | Grant replayed, stolen or tampered with | — | — | HMAC over principal + action + params; expiry; single use; re-authorize at redemption | agentic-core `test_actions.py` |
 | Model output runs as script (XSS) | LLM05 (CWE-79) | — | `textContent`; nonce CSP; sanitizer | Playwright render check, V5 suite |
-| Data exfiltration through markdown images | LLM05, LLM02 | AML.T0057 | Sanitizer strips images and links; CSP `img-src 'self'` | sanitizer tests |
+| Data exfiltration through markdown images | LLM05, LLM02 | AML.T0077, AML.T0057 | Sanitizer strips images and links; CSP `img-src 'self'` | sanitizer tests |
 | A prompt dump also injects actions | LLM01, LLM06 | — | Leak scan runs **before** action parsing | `test_guarded_blocks_the_same_dump_before_any_action_is_parsed` |
 | No record of who did what | — | — | One event line per decision, with request id; no secrets or tokens | event-log assertions in tests |
 | Long generations tie up the server | LLM10 | — | Timeout returns a clear 504 (no rate or size limits yet) | `test_model_timeout_is_a_clear_504` |
 
-ATLAS technique ids follow ATLAS v4/v5 naming; check them against the current matrix before citing.
+OWASP ids follow the OWASP Top 10 for LLM Applications 2025. ATLAS ids were checked against MITRE ATLAS 2026.06: AML.T0051 LLM Prompt Injection, AML.T0053 AI Agent Tool Invocation, AML.T0056 Extract LLM System Prompt, AML.T0057 LLM Data Leakage, AML.T0077 LLM Response Rendering.
 
 ## Design rules
 
@@ -85,4 +85,4 @@ ATLAS technique ids follow ATLAS v4/v5 naming; check them against the current ma
 | Limits | Model timeout only | Input, history and output size limits; per-user rate limits; cost budgets |
 | Models | Local Ollama | Model routing by data class; pin model versions; re-run the attack suite before promoting a new model |
 | Evaluation | Manual runs | Attack and benign suites as a CI regression gate on every model, prompt or policy change |
-| Governance | — | Map controls and eval evidence to NIST AI RMF (Measure/Manage) and ISO/IEC 42001 |
+| Governance | — | Map controls and eval evidence to NIST AI RMF 1.0 (Measure, Manage) and ISO/IEC 42001:2023 (AI management system) |
